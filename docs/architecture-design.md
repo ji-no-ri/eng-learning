@@ -29,7 +29,7 @@
 
 ## 2. アーキテクチャ方針（サマリ）
 
-- **レイヤードアーキテクチャ**（Presentation / Domain / Data の3層）を採用し、依存方向を Presentation → Domain → Data に一方向化する。ビジネスロジック（SM-2・集計）をUIやDB実装から独立させ、テスト容易性と変更耐性を確保する。
+- **レイヤードアーキテクチャ**（Presentation / Domain / Data の3層）を採用する。依存方向は **Presentation → Domain、Data → Domain（抽象への依存）** とし、Domain 層を他層に依存しない中核に置く（依存性逆転）。Presentation は Domain のユースケース／抽象に依存し、Data は Domain が定義するリポジトリ・インターフェースを実装する。これによりビジネスロジック（SM-2・集計）をUIやDB実装から独立させ、テスト容易性と変更耐性を確保する。
 - **状態管理は Riverpod（flutter_riverpod）を推奨**とする（理由は第4章）。
 - **オフラインファースト**を徹底する。単語データは静的DBとしてアプリに同梱し、実行時にAPIを呼ばない。ネットワークを使う処理は「Piper TTSモデルの任意ダウンロード」だけに限定する（RFP 第7章・第9章）。
 - **音声はオンデバイス実行時合成**。flutter_tts（OS標準・初期値）と Piper TTS（ONNXモデル・任意DL）を `app_settings.tts_engine` で切り替える。単語音声の事前生成・同梱は行わない（`words.audio_file_path` は将来用予約カラム）。
@@ -136,8 +136,9 @@ flowchart TD
     class NET net;
 ```
 
-- 依存は上から下への一方向（Presentation → Domain → Data）。
-- Data 層のリポジトリ実装は Domain のインターフェースを実装する（依存性逆転：破線「実装」）。
+- 依存の向きは **Presentation → Domain** と **Data → Domain（抽象への依存）** の2方向であり、いずれも Domain 層へ向かう。Domain は Presentation にも Data にも依存しない中核である。
+- Data 層のリポジトリ実装は Domain のインターフェースを実装する（依存性逆転：図中の破線「実装」が Data から Domain の抽象へ向かう）。
+- 実行時の呼び出しは Presentation → Domain → （抽象経由で）Data の順に処理が委譲されるが、これはコンパイル時の依存方向とは独立であり、ソースコード上の依存は常に Domain へ向かう。
 - 破線の `NET`（公開インフラ）への依存は **Piper TTSモデルのダウンロード時のみ**発生する任意経路であり、通常の学習機能はすべて同梱アセットとオンデバイス処理で完結する（オフラインファースト）。
 
 ---
