@@ -263,6 +263,56 @@ sequenceDiagram
 
 削除（「Piper TTSを使用しない」押下）時は、`PiperModelDownloader` が①モデルファイルをストレージから削除 → ②`app_settings.piper_model_path` をNULLに更新 → ③`app_settings.tts_engine` を `'flutter_tts'` に更新 → ④ボタンを状態Aへ戻す、の順で処理する。
 
+### 5.5 モデル取得先の定数化とビルド時上書き（`PIPER_MODEL_BASE_URL`）
+
+Piperモデルの取得先URLは、環境（本番配布／開発検証）によって差し替え可能とする。`docs/development-environment-design.md` が開発環境の環境変数 `PIPER_MODEL_BASE_URL`（既定 `http://model-mock:8080/models`）を定義し、その**取得先差し替えの実装方式は本設計書で確定する**と委譲しているため、本節でその責務境界と上書き方式を定める。
+
+**責務の分担**
+
+| 事項 | 決定 | 所在 |
+|---|---|---|
+| モデル取得先ベースURLの**アプリ側既定値** | `core/constants` に定数として保持（`docs/architecture-design.md` 第6章）。実際の公開インフラ（GitHub Releases / Hugging Face）上の実URLは実装時にモデル選定と合わせて確定する。 | 本書・アーキテクチャ設計書 |
+| 取得先を**環境で差し替える**フックの名称・既定値・用途 | 環境変数 `PIPER_MODEL_BASE_URL`。開発時はモック配信（`model-mock`）へ向け、ダウンロード成功・進捗・失敗の各シナリオをオフライン検証する。 | 開発環境設計書 |
+| 差し替えの**実装方式**（本節で確定） | 下記のとおり Dart のコンパイル時環境変数（`--dart-define`）でベースURLを上書きする方式とする。 | 本書 |
+
+**上書き方式（`--dart-define` によるコンパイル時注入）**
+
+`PiperModelDownloader` が参照するベースURLは、`core/constants` の単一の定数に集約する。この定数は Dart のコンパイル時環境変数（`String.fromEnvironment`）から読み取り、未指定時はアプリ側既定値（公開インフラの実URL）にフォールバックする。
+
+```dart
+// core/constants: モデル取得先ベースURLの単一の決定点
+class PiperModelSource {
+  /// アプリ側の既定取得先（公開インフラの実URL。実装時に確定）。
+  static const String _defaultBaseUrl =
+      'https://<公開インフラ上のPiper英語モデル配布先>'; // 実装時に確定
+
+  /// ベースURL。ビルド時に PIPER_MODEL_BASE_URL が渡されればそれを、
+  /// 渡されなければ既定値を用いる。
+  static const String baseUrl = String.fromEnvironment(
+    'PIPER_MODEL_BASE_URL',
+    defaultValue: _defaultBaseUrl,
+  );
+
+  /// 取得対象のモデルファイル名（実装時に選定モデルへ確定）。
+  static const String modelFileName = '<selected_model>.onnx';
+
+  /// 実際に取得するURL。
+  static String get modelUrl => '$baseUrl/$modelFileName';
+}
+```
+
+- **本番ビルド**: `PIPER_MODEL_BASE_URL` を指定せずにビルドする。`baseUrl` は既定値（公開インフラの実URL）となり、実利用者は公開インフラから直接ダウンロードする（RFP 4.5・第7章「自前ホスティング不要」）。
+- **開発ビルド**: ビルド／実行コマンドに `--dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models` を付与し、取得先を `model-mock`（`docs/development-environment-design.md` 3.3節）へ向ける。これにより公開インフラへ実アクセスせずダウンロード機能を決定的に検証できる。
+
+```bash
+# 開発時（モック配信へ向けてダウンロード検証）
+flutter run --dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models
+flutter test integration_test --dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models
+```
+
+- **選定理由**: `--dart-define` はビルド時に値を焼き込むコンパイル時定数であり、`const` として最適化されるうえ、実行時の追加設定ファイルや通信を要しない。取得先の差し替え点をアプリ内の1定数（`PiperModelSource.baseUrl`）に限定できるため、開発／本番の切替が漏れなく1箇所で完結する。開発環境設計書が示す既定値・用途と、本書が定める `--dart-define` 上書き方式は整合しており、後続の環境構築フェーズはこの方式を前提にビルド・検証コマンドを構成できる。
+- チェックサム検証は初期版で実装しないため（RFP 第9章・第1.1節）、取得先が本番／モックのいずれであっても配布物はそのまま利用する。
+
 ---
 
 ## 6. 再生時の判定フロー（図3）
@@ -302,9 +352,11 @@ flowchart TD
 
 | key | value 例 | 説明 | 初期値 |
 |---|---|---|---|
-| `audio_enabled` | `'true'` / `'false'` | 読み上げ音声の全体ON/OFF（設定画面4.5で管理）。切替は即時反映・永続化。 | `'true'`（想定） |
-| `tts_engine` | `'flutter_tts'` / `'piper'` | 現在有効なTTSエンジン。Piperダウンロード成功時に `'piper'`、削除時に `'flutter_tts'` へ自動更新。 | `'flutter_tts'` |
-| `piper_model_path` | 端末ローカルパス文字列 / `NULL` | Piperモデルの保存先パス。未ダウンロード時はNULL、削除時にNULLへ戻す。 | `NULL` |
+| `audio_enabled` | `'true'` / `'false'` | 読み上げ音声の全体ON/OFF（設定画面4.5で管理）。切替は即時反映・永続化。 | `'true'`（本書で固定） |
+| `tts_engine` | `'flutter_tts'` / `'piper'` | 現在有効なTTSエンジン。Piperダウンロード成功時に `'piper'`、削除時に `'flutter_tts'` へ自動更新。 | `'flutter_tts'`（RFP 第6章で確定） |
+| `piper_model_path` | 端末ローカルパス文字列 / `NULL` | Piperモデルの保存先パス。未ダウンロード時はNULL、削除時にNULLへ戻す。 | `NULL`（RFP 第6章で確定） |
+
+**`audio_enabled` の初期値に関する設計判断**: RFP 第6章は `tts_engine`（`'flutter_tts'`）と `piper_model_path`（`NULL`）の初期値を確定しているが、`audio_enabled` の初期値は明文化していない。本書は設計判断として初期値を **`'true'`（音声ON）に固定**する。根拠は、RFP 4.3 が「音声設定ONのとき、単語表示と同時に音声が自動再生される」を標準フローとして規定しており、初回起動時から発音機能が利用できる状態が本アプリの想定する既定体験であるため。この初期値は初回起動時のDB初期化（同梱DBのシード）で `app_settings` に投入し、以後はユーザー操作の切替結果を永続化する。
 
 - 音声ON/OFFスイッチの状態は切替時に即座に `audio_enabled` へ書き込み、永続化する（RFP 第11章）。
 - `tts_engine` と `piper_model_path` はダウンロード成功・モデル削除のタイミングで一貫して更新する。両者が矛盾しない（`tts_engine=='piper'` なのにモデル不在）場合でも、再生時の判定（第6章）がモデル実在を確認するため、安全にflutter_ttsへフォールバックする。
@@ -335,7 +387,7 @@ flowchart TD
 - **合成レイテンシの監視**: 実機検証で単語表示ごとの実行時合成レイテンシがユーザー体験上許容できないと判明した場合に限り、`words.audio_file_path`（予約カラム）を用いた事前生成キャッシュ方式へ切り替える（第4.4節・RFP 第9章）。初期版では実装しない。
 - **失敗時の無音回避**: 発音要求はどの経路でも最終的にflutter_ttsへフォールバック可能とし、音声設定ONの状態で無音になることを避ける。
 - **多重ダウンロード防止**: ダウンロード中は設定画面のPiperボタンを再押下不可とし、重複ダウンロード・状態不整合を防ぐ。
-- **利用パッケージ（想定）**: OS標準TTSは `flutter_tts` パッケージ、Piper TTSはオンデバイスONNX推論を行うPiper系ライブラリ、ダウンロード・ファイル操作は標準的なHTTP／ファイルI/O、パス取得はアプリ専用ディレクトリAPIを用いる。具体パッケージは実装時に選定する。
+- **利用パッケージ**: `docs/architecture-design.md`（第7章 依存パッケージ）と整合させ、OS標準TTSは `flutter_tts`、Piper TTS（VITS/`.onnx`）のオンデバイス合成は `sherpa_onnx`（内部にONNXランタイムを内包）、モデルのHTTPダウンロード（進捗表示 `onReceiveProgress` を含む）は `dio`、保存先パス取得はアプリ専用ディレクトリAPI（`path_provider` 等）、パス結合は `path` を第一候補とする。最終的なパッケージ選定・バージョン確定は実装時に行う。
 
 ---
 
