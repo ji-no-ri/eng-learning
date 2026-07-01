@@ -8,7 +8,7 @@
 **対象ユーザー**: 費用をかけずに英語学習をしたい人
 **初期バージョン開発目標**: 1日
 **作成日 / 更新日**: 2026-07-02 / 2026-07-02
-**版数**: v1.4
+**版数**: v1.5
 
 ---
 
@@ -438,7 +438,7 @@ CREATE TABLE words (
 ```sql
 CREATE TABLE user_progress (
   id INTEGER PRIMARY KEY,
-  word_id INTEGER NOT NULL,
+  word_id INTEGER NOT NULL UNIQUE,   -- 1語につき進捗レコードは0/1件（ER図と一致。UNIQUEで1語1進捗を保証）
   ease_factor REAL DEFAULT 2.5,
   interval_days INTEGER DEFAULT 0,
   repetitions INTEGER DEFAULT 0,
@@ -481,7 +481,7 @@ CREATE TABLE app_settings (
 
 ### ER図
 
-`study_log` の `word_id` は `words.id` への論理参照（学習履歴を残すため FOREIGN KEY 制約は必須としない設計とし、ここではリレーションを識別関係として表現する）。
+`study_log` の `word_id` は `words.id` を参照する **外部キー制約（`FOREIGN KEY(word_id) REFERENCES words(id)`）を採用**する（上記SQL定義と一致）。`words` は事前投入の静的データであり、学習ログが存在する単語行が削除されることはないため、外部キー制約を課しても学習履歴の保持に支障はない。ER図では非識別リレーション（1語につき複数の学習ログ）として表現する。
 
 ```mermaid
 erDiagram
@@ -504,7 +504,7 @@ erDiagram
 
     user_progress {
         INTEGER id PK
-        INTEGER word_id FK
+        INTEGER word_id FK "UNIQUE（1語1進捗）"
         REAL    ease_factor
         INTEGER interval_days
         INTEGER repetitions
@@ -651,3 +651,4 @@ erDiagram
 | v1.2 | 2026-07-02 | Piper TTSダウンロード方式が既存公開インフラ（GitHub Releases/Hugging Face）利用でサーバー不要と判明したことを受け、設定画面（4.5節）を新設。音声ON/OFFスイッチをホーム画面から設定画面へ移動。Piper TTSの「使用する/使用しない」ボタンによるダウンロード・削除・エンジン切替の状態遷移を追加（状態遷移図付き）。画面遷移全体図（4.0）に設定画面ノードを追加。第6章 `app_settings` に `tts_engine`・`piper_model_path` キーを追加。第7章 非機能要件・第9章 未確定事項・第10章 用語集・第11章 受け入れ基準を上記に合わせて更新。 |
 | v1.3 | 2026-07-02 | 第9章を整理。確定済み設計判断は各本文（第3.1／第5／第7／第4.5節）に集約済みのため、確定済み一覧（旧9.1）を削除し、第9章を残課題のみの構成に再編。ドキュメントを最終成果物として整合。 |
 | v1.4 | 2026-07-02 | 音声方式の再確認に対するクライアント回答（「実行時にリアルタイムに作って再生。パフォーマンス的に現実的でなければ修正」）を反映。flutter_tts・Piper TTS ともに実行時オンデバイスでのリアルタイム都度合成で確定（事前生成・同梱・キャッシュはしない）とし、第7章・第4.5節の該当記述から `assumption` を除去して確定表記に更新。第4.5節「音声再生ロジック」の「ファイルベース合成」表現をモデルを用いた実行時合成に明確化。実行時合成のパフォーマンス検証（許容不可時のみ `audio_file_path` 事前生成方式へ切替）を第9章残課題に追加。 |
+| v1.5 | 2026-07-02 | レビュー指摘に基づくDB整合修正。第6章 `user_progress.word_id` に `UNIQUE` 制約を追加し、ER図の「1語につき0/1件の進捗」定義と一致させ1語1進捗を保証。第6章 `study_log` の外部キーに関する本文の矛盾を解消し、SQL定義どおり `FOREIGN KEY(word_id) REFERENCES words(id)` を採用する方針へ統一（採用理由も明記）。ER図の `user_progress.word_id` にUNIQUE注記を追加。 |
