@@ -265,15 +265,7 @@ sequenceDiagram
 
 ### 5.5 モデル取得先の定数化とビルド時上書き（`PIPER_MODEL_BASE_URL`）
 
-Piperモデルの取得先URLは、環境（本番配布／開発検証）によって差し替え可能とする。`docs/development-environment-design.md` が開発環境の環境変数 `PIPER_MODEL_BASE_URL`（既定 `http://model-mock:8080/models`）を定義し、その**取得先差し替えの実装方式は本設計書で確定する**と委譲しているため、本節でその責務境界と上書き方式を定める。
-
-**責務の分担**
-
-| 事項 | 決定 | 所在 |
-|---|---|---|
-| モデル取得先ベースURLの**アプリ側既定値** | `core/constants` に定数として保持（`docs/architecture-design.md` 第6章）。実際の公開インフラ（GitHub Releases / Hugging Face）上の実URLは実装時にモデル選定と合わせて確定する。 | 本書・アーキテクチャ設計書 |
-| 取得先を**環境で差し替える**フックの名称・既定値・用途 | 環境変数 `PIPER_MODEL_BASE_URL`。開発時はモック配信（`model-mock`）へ向け、ダウンロード成功・進捗・失敗の各シナリオをオフライン検証する。 | 開発環境設計書 |
-| 差し替えの**実装方式**（本節で確定） | 下記のとおり Dart のコンパイル時環境変数（`--dart-define`）でベースURLを上書きする方式とする。 | 本書 |
+Piperモデルの取得先URLは、配布形態（本番配布／開発検証）に応じて差し替え可能とする。ここで**決定的に重要な前提**として、モデルのダウンロードは `PiperModelDownloader` すなわち**アプリプロセス自身**が、動作している端末環境（Androidエミュレータ／実機、iOSシミュレータ／実機）の内側から HTTP(S) で実行する。したがって `--dart-define` に渡す取得先URLは、**そのアプリが動作する実行形態から名前解決・接続できる到達可能なホスト**でなければならない。本節はこの到達性要件を含めて上書き方式を確定する。
 
 **上書き方式（`--dart-define` によるコンパイル時注入）**
 
@@ -301,17 +293,45 @@ class PiperModelSource {
 }
 ```
 
-- **本番ビルド**: `PIPER_MODEL_BASE_URL` を指定せずにビルドする。`baseUrl` は既定値（公開インフラの実URL）となり、実利用者は公開インフラから直接ダウンロードする（RFP 4.5・第7章「自前ホスティング不要」）。
-- **開発ビルド**: ビルド／実行コマンドに `--dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models` を付与し、取得先を `model-mock`（`docs/development-environment-design.md` 3.3節）へ向ける。これにより公開インフラへ実アクセスせずダウンロード機能を決定的に検証できる。
+**本番ビルド（到達性は自明）**
+
+`PIPER_MODEL_BASE_URL` を指定せずにビルドする。`baseUrl` は既定値（公開インフラ = GitHub Releases / Hugging Face の `https` 実URL）となり、実利用者の端末はインターネット経由で直接ダウンロードする（RFP 4.5・第7章「自前ホスティング不要」）。公開インフラの `https` ホストはどの実行形態からも到達可能であり、追加設定を要しない。
+
+**開発・検証ビルド（実行形態別の到達可能URLを指定）**
+
+開発時は取得先を開発者ホスト上の**静的HTTP配信**（開発機のローカルディレクトリで `.onnx` を配る軽量サーバ。コンテナ不要、Flutter開発機上で完結）へ向ける。ここで、コンテナ内サービス名（例 `model-mock`）や `localhost`／`127.0.0.1` を無条件に渡してはならない。**「アプリから見た開発ホスト」は実行形態ごとに異なるアドレスになる**ためである。実行形態ごとの到達可能なアドレスと `--dart-define` に渡すURL例を次表に定める（配信ポートは例として 8080）。
+
+| 実行形態 | アプリから見た開発ホストの到達先 | `--dart-define` に渡すURL例 |
+|---|---|---|
+| Androidエミュレータ | エミュレータ→ホストのループバックは専用エイリアス `10.0.2.2`（`localhost`はエミュレータ自身を指すため不可） | `http://10.0.2.2:8080/models` |
+| Android実機（USB接続） | `adb reverse tcp:8080 tcp:8080` で開発ホストの8080を端末の `127.0.0.1` に転送 | `http://127.0.0.1:8080/models`（要 `adb reverse`） |
+| Android実機（同一LAN） | 開発ホストのLAN IP（例 `192.168.x.x`） | `http://<開発ホストのLAN IP>:8080/models` |
+| iOSシミュレータ | ホストとネットワークを共有するため `127.0.0.1` で到達可 | `http://127.0.0.1:8080/models` |
+| iOS実機（同一LAN） | 開発ホストのLAN IP（例 `192.168.x.x`） | `http://<開発ホストのLAN IP>:8080/models` |
+
+- **禁止事項**: コンテナ／compose のサービス名（`model-mock` 等）や、実行形態を無視した固定 `localhost` を `--dart-define` に渡さないこと。これらは端末・エミュレータ側から名前解決・接続できず、ダウンロードが必ず失敗する。差し替え先は上表の到達可能ホストに限定する。
+- **平文HTTP許可（開発ビルドのみ）**: 上表の開発向けURLは `http://`（平文）である。Androidは既定で平文通信を禁止するため、**開発ビルドに限り** `network_security_config` で開発ホスト（`10.0.2.2` / `127.0.0.1` / LAN IP）宛ての cleartext を許可する。iOSも**開発ビルドに限り** ATS（App Transport Security）例外を設定する。本番ビルドは公開インフラの `https` を用いるため、これらの平文例外は不要であり本番成果物には含めない。
 
 ```bash
-# 開発時（モック配信へ向けてダウンロード検証）
-flutter run --dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models
-flutter test integration_test --dart-define=PIPER_MODEL_BASE_URL=http://model-mock:8080/models
+# Androidエミュレータ（ホストのループバックは 10.0.2.2）
+flutter run --dart-define=PIPER_MODEL_BASE_URL=http://10.0.2.2:8080/models
+
+# Android実機（USB接続時は adb reverse でホストの8080を端末の 127.0.0.1 へ転送）
+adb reverse tcp:8080 tcp:8080
+flutter run --dart-define=PIPER_MODEL_BASE_URL=http://127.0.0.1:8080/models
+
+# iOSシミュレータ（ホストと同一の 127.0.0.1）
+flutter run --dart-define=PIPER_MODEL_BASE_URL=http://127.0.0.1:8080/models
+
+# iOS実機 / Android実機（同一LAN：開発ホストのLAN IPを指定）
+flutter run --dart-define=PIPER_MODEL_BASE_URL=http://192.168.10.5:8080/models
+
+# 統合テストも同様に、実行形態に対応する到達可能URLを渡す
+flutter test integration_test --dart-define=PIPER_MODEL_BASE_URL=http://10.0.2.2:8080/models
 ```
 
-- **選定理由**: `--dart-define` はビルド時に値を焼き込むコンパイル時定数であり、`const` として最適化されるうえ、実行時の追加設定ファイルや通信を要しない。取得先の差し替え点をアプリ内の1定数（`PiperModelSource.baseUrl`）に限定できるため、開発／本番の切替が漏れなく1箇所で完結する。開発環境設計書が示す既定値・用途と、本書が定める `--dart-define` 上書き方式は整合しており、後続の環境構築フェーズはこの方式を前提にビルド・検証コマンドを構成できる。
-- チェックサム検証は初期版で実装しないため（RFP 第9章・第1.1節）、取得先が本番／モックのいずれであっても配布物はそのまま利用する。
+- **選定理由**: `--dart-define` はビルド時に値を焼き込むコンパイル時定数であり、`const` として最適化されるうえ、実行時の追加設定ファイルや通信を要しない。取得先の差し替え点をアプリ内の1定数（`PiperModelSource.baseUrl`）に限定できるため、実行形態に応じた到達可能URLへの切替が漏れなく1箇所で完結する。到達性はコンテナ内部のトポロジではなく、上表のとおり「アプリが動く端末から開発ホストへ届くか」で判断する。
+- チェックサム検証は初期版で実装しないため（RFP 第9章・第1.1節）、取得先が本番（公開インフラ）／開発（ローカル配信）のいずれであっても配布物はそのまま利用する。
 
 ---
 
