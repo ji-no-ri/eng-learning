@@ -9,10 +9,10 @@ import 'repositories/word_repository.dart';
 
 /// 初回起動時に `words` テーブルへ静的な単語データを投入する仕組み。
 ///
-/// 本クラスは「投入の仕組み」のみを提供する。同梱している
-/// `assets/seed/words_seed.json` は各レベル数語のダミー（構造確認用）であり、
-/// 実データ（JACET8000 + Wiktionary 補完、最大8000語）は事前収集済みのものへ
-/// 差し替える前提である（単語データの収集・変換は本アプリのスコープ外／RFP 第9章）。
+/// 同梱シード `assets/seed/words_seed.json`（LV1〜LV8 のスターター語彙セット）を
+/// 読み込み、`words` が空のときに一括投入する。シードは RFP 第6章 `words` スキーマに
+/// 準拠した正式な同梱データであり、追加語彙も同一フォーマットで同ファイルへ拡張できる
+/// （単語データの収集・変換フロー自体は本アプリのスコープ外／RFP 第9章）。
 ///
 /// シードエントリの JSON 形状:
 /// ```json
@@ -54,7 +54,7 @@ class SeedLoader {
           await db.rawQuery('SELECT COUNT(*) FROM ${DatabaseHelper.tableWords}'),
         ) ??
         0;
-    if (count > 0) return 0; // 既に投入済み（実データ差し替え後も再投入しない）
+    if (count > 0) return 0; // 既に投入済みなら再投入しない（冪等）
 
     final words = await loadWordsFromAsset(assetPath);
     return _wordRepository.insertWords(words, executor: db);
