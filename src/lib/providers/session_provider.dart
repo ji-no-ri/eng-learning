@@ -41,26 +41,57 @@ enum SessionStep {
 /// 基準時刻はセッション開始時点の端末ローカル日時（[DateTime.now]）を当日 0:00 に丸めて用いる
 /// （RFP 5.2「0:00 境界基準」。復習対象の抽出・SM-2 の日付算出で一貫させる）。
 class SessionProvider extends ChangeNotifier {
-  SessionProvider({
-    required this.mode,
-    this.level,
+  /// テスト差し替え用の依存を受け取りつつ、進捗リポジトリを1インスタンスに統一する。
+  ///
+  /// 復習対象の抽出（[_loadTargets]）と SM-2 による評価更新（[Sm2Service.gradeWord]）が
+  /// **同一の [ProgressRepository] を参照**するよう、`progressRepository` を注入した場合は
+  /// 既定生成する [Sm2Service] にも同じインスタンスを渡す（注入した永続化先と SM-2 の
+  /// 更新先が食い違わないようにする）。`sm2Service` を明示注入した場合はそれを優先する
+  /// ため、その際は呼び出し側が同一のデータソースを渡す責務を負う。
+  factory SessionProvider({
+    required SessionMode mode,
+    int? level,
     WordRepository? wordRepository,
     ProgressRepository? progressRepository,
     Sm2Service? sm2Service,
     TtsService? ttsService,
     DateTime? now,
-  })  : assert(
-          mode != SessionMode.newLearning || level != null,
-          '新規学習モードでは level（対象レベル）が必須です。',
-        ),
-        _wordRepository = wordRepository ?? WordRepository(),
-        _progressRepository = progressRepository ?? ProgressRepository(),
-        _sm2Service = sm2Service ?? Sm2Service(),
-        _ttsService = ttsService ?? TtsService(),
-        // 基準時刻はセッション開始時点で当日 0:00 に丸めて確定し、以降の
-        // 復習抽出（_loadTargets）と SM-2 更新（grade）で同一値を用いる
-        // （RFP 5.2「0:00 境界基準」。基準日を全処理で一貫させる）。
-        _now = _startOfDay(now ?? DateTime.now());
+  }) {
+    assert(
+      mode != SessionMode.newLearning || level != null,
+      '新規学習モードでは level（対象レベル）が必須です。',
+    );
+    // 進捗リポジトリを1つに解決し、復習抽出と SM-2 更新の双方で共有する。
+    final resolvedProgress = progressRepository ?? ProgressRepository();
+    return SessionProvider._(
+      mode: mode,
+      level: level,
+      wordRepository: wordRepository ?? WordRepository(),
+      progressRepository: resolvedProgress,
+      // sm2Service 未注入時は同じ進捗リポジトリを渡し、更新先を一貫させる。
+      sm2Service:
+          sm2Service ?? Sm2Service(progressRepository: resolvedProgress),
+      ttsService: ttsService ?? TtsService(),
+      // 基準時刻はセッション開始時点で当日 0:00 に丸めて確定し、以降の
+      // 復習抽出（_loadTargets）と SM-2 更新（grade）で同一値を用いる
+      // （RFP 5.2「0:00 境界基準」。基準日を全処理で一貫させる）。
+      now: _startOfDay(now ?? DateTime.now()),
+    );
+  }
+
+  SessionProvider._({
+    required this.mode,
+    required this.level,
+    required WordRepository wordRepository,
+    required ProgressRepository progressRepository,
+    required Sm2Service sm2Service,
+    required TtsService ttsService,
+    required DateTime now,
+  })  : _wordRepository = wordRepository,
+        _progressRepository = progressRepository,
+        _sm2Service = sm2Service,
+        _ttsService = ttsService,
+        _now = now;
 
   /// セッションモード（新規学習／復習）。
   final SessionMode mode;
@@ -84,6 +115,12 @@ class SessionProvider extends ChangeNotifier {
 
   /// 出題対象の読み込み中か。初回は true。
   bool get loading => _loading;
+
+  bool _grading = false;
+
+  /// 評価押下の処理中か（SM-2 更新〜次語遷移が完了するまで true）。
+  /// この間は [canGrade] が false になり、◎〇△×の連打による二重送信を防ぐ。
+  bool get isGrading => _grading;
 
   Object? _error;
 
@@ -124,8 +161,10 @@ class SessionProvider extends ChangeNotifier {
   /// 空セッション（対象0語）も読み込み完了時点で true。
   bool get finished => !_loading && _error == null && _index >= _words.length;
 
-  /// ◎〇△×ボタンが活性化しているか（Step2 のみ活性。Step1 はグレーアウト）。
-  bool get canGrade => _step == SessionStep.detail && currentWord != null;
+  /// ◎〇△×ボタンが活性化しているか（Step2 かつ評価処理中でないときのみ活性。
+  /// Step1 はグレーアウト。評価処理中（[isGrading]）も無効化して連打を防ぐ）。
+  bool get canGrade =>
+      _step == SessionStep.detail && currentWord != null && !_grading;
 
   /// `study_log.session_type` 用の文字列（new / review）。
   String get sessionType => mode == SessionMode.newLearning
@@ -187,25 +226,38 @@ class SessionProvider extends ChangeNotifier {
   /// Step2（[canGrade]）でのみ有効。押下値は [grades] へ蓄積し、完了画面の円グラフ入力とする。
   Future<void> grade(Grade grade) async {
     final word = currentWord;
+    // 二重送信ガード：処理中は canGrade が false のため、非同期処理の完了前に
+    // 同じ単語へ再度押下されても即 return する（_index の余分な進行＝単語スキップ、
+    // および SM-2 更新・study_log の重複追記を防ぐ）。
     if (!canGrade || word == null) return;
 
-    // SM-2 更新（進捗レコードの取得/新規作成 → 更新 → study_log 追記を同一トランザクションで）。
-    // 基準時刻は _loadTargets の復習抽出と同じ _now（当日 0:00 に丸め済み）を渡し、
-    // 復習抽出と SM-2 の日付算出で基準日を一貫させる（RFP 5.2「0:00 境界基準」）。
-    await _sm2Service.gradeWord(
-      wordId: word.id!,
-      level: word.level,
-      grade: grade,
-      sessionType: sessionType,
-      now: _now,
-    );
-
-    _grades.add(grade);
-
-    // 次の単語（Step1）へ。全語消化なら finished が true になる。
-    _index += 1;
-    _step = SessionStep.word;
+    // 評価処理中フラグを立て、ボタンを無効化する（canGrade が false になる）。
+    _grading = true;
     notifyListeners();
+
+    try {
+      // SM-2 更新（進捗レコードの取得/新規作成 → 更新 → study_log 追記を同一トランザクションで）。
+      // 基準時刻は _loadTargets の復習抽出と同じ _now（当日 0:00 に丸め済み）を渡し、
+      // 復習抽出と SM-2 の日付算出で基準日を一貫させる（RFP 5.2「0:00 境界基準」）。
+      await _sm2Service.gradeWord(
+        wordId: word.id!,
+        level: word.level,
+        grade: grade,
+        sessionType: sessionType,
+        now: _now,
+      );
+
+      _grades.add(grade);
+
+      // 次の単語（Step1）へ。全語消化なら finished が true になる。
+      _index += 1;
+      _step = SessionStep.word;
+    } finally {
+      // 成否によらず処理中フラグを解除する。失敗時は _index を進めていないため、
+      // 同じ単語で再度評価できる（連打ではなく明示的な再操作として受け付ける）。
+      _grading = false;
+      notifyListeners();
+    }
 
     // 次の単語があれば自動再生する。
     if (!finished) _speakCurrent();
