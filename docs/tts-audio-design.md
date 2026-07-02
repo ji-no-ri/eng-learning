@@ -263,75 +263,44 @@ sequenceDiagram
 
 削除（「Piper TTSを使用しない」押下）時は、`PiperModelDownloader` が①モデルファイルをストレージから削除 → ②`app_settings.piper_model_path` をNULLに更新 → ③`app_settings.tts_engine` を `'flutter_tts'` に更新 → ④ボタンを状態Aへ戻す、の順で処理する。
 
-### 5.5 モデル取得先の定数化とビルド時上書き（`PIPER_MODEL_BASE_URL`）
+### 5.5 モデル取得先の設定点
 
-Piperモデルの取得先URLは、配布形態（本番配布／開発検証）に応じて差し替え可能とする。ここで**決定的に重要な前提**として、モデルのダウンロードは `PiperModelDownloader` すなわち**アプリプロセス自身**が、動作している端末環境（Androidエミュレータ／実機、iOSシミュレータ／実機）の内側から HTTP(S) で実行する。したがって `--dart-define` に渡す取得先URLは、**そのアプリが動作する実行形態から名前解決・接続できる到達可能なホスト**でなければならない。本節はこの到達性要件を含めて上書き方式を確定する。
+Piperモデルの取得先（ベースURLとモデルファイル名）は、RFP第9章のとおり**実装時に公開インフラ（GitHub Releases / Hugging Face）上の配布物から選定して確定する**。本設計書時点では特定のモデル・URLを確定しない（RFP 4.5・第7章・第9章）。したがって本節では、確定していない取得先の実値をアプリ内の固定定数として埋め込むことはしない。設計上の要点は、取得先を**アプリ内の単一の決定点に集約し、選定結果を一箇所で差し替え可能にする**ことである。
 
-**上書き方式（`--dart-define` によるコンパイル時注入）**
+**方式（`--dart-define` によるコンパイル時注入）**
 
-`PiperModelDownloader` が参照するベースURLは、`core/constants` の単一の定数に集約する。この定数は Dart のコンパイル時環境変数（`String.fromEnvironment`）から読み取り、未指定時はアプリ側既定値（公開インフラの実URL）にフォールバックする。
+`PiperModelDownloader` が参照する取得先は、`core/constants` の単一クラス `PiperModelSource` に集約する。取得先の値は Dart のコンパイル時環境変数（`--dart-define` → `String.fromEnvironment`）としてビルド時に注入する。実値を注入方式にすることで、未確定値をソース上の固定リテラルとして持たず、選定結果の反映が一箇所で完結する。
 
 ```dart
-// core/constants: モデル取得先ベースURLの単一の決定点
+// core/constants: モデル取得先の単一の決定点。
+// 取得先の実値は実装時に公開インフラ上の配布物から選定し、
+// ビルド時に --dart-define で注入する（本設計書では特定値を確定しない）。
 class PiperModelSource {
-  /// アプリ側の既定取得先（公開インフラの実URL。実装時に確定）。
-  static const String _defaultBaseUrl =
-      'https://<公開インフラ上のPiper英語モデル配布先>'; // 実装時に確定
+  /// 公開インフラ上のモデル配布ベースURL（ビルド時に注入）。
+  static const String baseUrl =
+      String.fromEnvironment('PIPER_MODEL_BASE_URL');
 
-  /// ベースURL。ビルド時に PIPER_MODEL_BASE_URL が渡されればそれを、
-  /// 渡されなければ既定値を用いる。
-  static const String baseUrl = String.fromEnvironment(
-    'PIPER_MODEL_BASE_URL',
-    defaultValue: _defaultBaseUrl,
-  );
-
-  /// 取得対象のモデルファイル名（実装時に選定モデルへ確定）。
-  static const String modelFileName = '<selected_model>.onnx';
+  /// 取得対象のモデルファイル名（ビルド時に注入）。
+  static const String modelFileName =
+      String.fromEnvironment('PIPER_MODEL_FILE_NAME');
 
   /// 実際に取得するURL。
   static String get modelUrl => '$baseUrl/$modelFileName';
 }
 ```
 
-**本番ビルド（到達性は自明）**
-
-`PIPER_MODEL_BASE_URL` を指定せずにビルドする。`baseUrl` は既定値（公開インフラ = GitHub Releases / Hugging Face の `https` 実URL）となり、実利用者の端末はインターネット経由で直接ダウンロードする（RFP 4.5・第7章「自前ホスティング不要」）。公開インフラの `https` ホストはどの実行形態からも到達可能であり、追加設定を要しない。
-
-**開発・検証ビルド（実行形態別の到達可能URLを指定）**
-
-開発時は取得先を開発者ホスト上の**静的HTTP配信**（開発機のローカルディレクトリで `.onnx` を配る軽量サーバ。コンテナ不要、Flutter開発機上で完結）へ向ける。ここで、コンテナ内サービス名（例 `model-mock`）や `localhost`／`127.0.0.1` を無条件に渡してはならない。**「アプリから見た開発ホスト」は実行形態ごとに異なるアドレスになる**ためである。実行形態ごとの到達可能なアドレスと `--dart-define` に渡すURL例を次表に定める（配信ポートは例として 8080）。
-
-| 実行形態 | アプリから見た開発ホストの到達先 | `--dart-define` に渡すURL例 |
-|---|---|---|
-| Androidエミュレータ | エミュレータ→ホストのループバックは専用エイリアス `10.0.2.2`（`localhost`はエミュレータ自身を指すため不可） | `http://10.0.2.2:8080/models` |
-| Android実機（USB接続） | `adb reverse tcp:8080 tcp:8080` で開発ホストの8080を端末の `127.0.0.1` に転送 | `http://127.0.0.1:8080/models`（要 `adb reverse`） |
-| Android実機（同一LAN） | 開発ホストのLAN IP（例 `192.168.x.x`） | `http://<開発ホストのLAN IP>:8080/models` |
-| iOSシミュレータ | ホストとネットワークを共有するため `127.0.0.1` で到達可 | `http://127.0.0.1:8080/models` |
-| iOS実機（同一LAN） | 開発ホストのLAN IP（例 `192.168.x.x`） | `http://<開発ホストのLAN IP>:8080/models` |
-
-- **禁止事項**: コンテナ／compose のサービス名（`model-mock` 等）や、実行形態を無視した固定 `localhost` を `--dart-define` に渡さないこと。これらは端末・エミュレータ側から名前解決・接続できず、ダウンロードが必ず失敗する。差し替え先は上表の到達可能ホストに限定する。
-- **平文HTTP許可（開発ビルドのみ）**: 上表の開発向けURLは `http://`（平文）である。Androidは既定で平文通信を禁止するため、**開発ビルドに限り** `network_security_config` で開発ホスト（`10.0.2.2` / `127.0.0.1` / LAN IP）宛ての cleartext を許可する。iOSも**開発ビルドに限り** ATS（App Transport Security）例外を設定する。本番ビルドは公開インフラの `https` を用いるため、これらの平文例外は不要であり本番成果物には含めない。
+ビルド時には、実装時に選定した公開インフラ上の配布先を渡す（下記の山括弧部分は選定結果の実値に置換する）。
 
 ```bash
-# Androidエミュレータ（ホストのループバックは 10.0.2.2）
-flutter run --dart-define=PIPER_MODEL_BASE_URL=http://10.0.2.2:8080/models
-
-# Android実機（USB接続時は adb reverse でホストの8080を端末の 127.0.0.1 へ転送）
-adb reverse tcp:8080 tcp:8080
-flutter run --dart-define=PIPER_MODEL_BASE_URL=http://127.0.0.1:8080/models
-
-# iOSシミュレータ（ホストと同一の 127.0.0.1）
-flutter run --dart-define=PIPER_MODEL_BASE_URL=http://127.0.0.1:8080/models
-
-# iOS実機 / Android実機（同一LAN：開発ホストのLAN IPを指定）
-flutter run --dart-define=PIPER_MODEL_BASE_URL=http://192.168.10.5:8080/models
-
-# 統合テストも同様に、実行形態に対応する到達可能URLを渡す
-flutter test integration_test --dart-define=PIPER_MODEL_BASE_URL=http://10.0.2.2:8080/models
+# 実装時に選定した公開インフラ上の配布先を渡してビルドする
+flutter run \
+  --dart-define=PIPER_MODEL_BASE_URL=<公開インフラ上の配布ベースURL> \
+  --dart-define=PIPER_MODEL_FILE_NAME=<選定モデルのファイル名>
 ```
 
-- **選定理由**: `--dart-define` はビルド時に値を焼き込むコンパイル時定数であり、`const` として最適化されるうえ、実行時の追加設定ファイルや通信を要しない。取得先の差し替え点をアプリ内の1定数（`PiperModelSource.baseUrl`）に限定できるため、実行形態に応じた到達可能URLへの切替が漏れなく1箇所で完結する。到達性はコンテナ内部のトポロジではなく、上表のとおり「アプリが動く端末から開発ホストへ届くか」で判断する。
-- チェックサム検証は初期版で実装しないため（RFP 第9章・第1.1節）、取得先が本番（公開インフラ）／開発（ローカル配信）のいずれであっても配布物はそのまま利用する。
+- **到達性・通信方式**: `PiperModelDownloader`（アプリプロセス自身）が動作端末の内側からダウンロードを実行するため、注入する取得先は端末から到達可能な公開インフラの `https` ホストとする（RFP 4.5・第7章「自前ホスティング不要」）。
+- **選定理由**: `--dart-define` はビルド時に値を確定するコンパイル時定数であり、実行時の追加設定ファイルや通信を要しない。取得先の決定点をアプリ内の1クラス（`PiperModelSource`）に限定できるため、選定・変更が漏れなく1箇所で完結する。
+- チェックサム検証は初期版で実装しないため（RFP 第9章・第1.1節）、選定した公開インフラの配布物はそのまま利用する。
 
 ---
 
