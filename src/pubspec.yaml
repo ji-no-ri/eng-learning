@@ -7,8 +7,11 @@ publish_to: "none"
 version: 1.0.0+1
 
 environment:
+  # Dart / Flutter SDK ともに下限・上限を持つ有効なバージョン制約を指定する。
+  # `flutter` に下限のみを与えると無効な制約として扱われ pub get が失敗するため、
+  # 上限（<4.0.0）を必ず付す。
   sdk: ">=3.0.0 <4.0.0"
-  flutter: ">=3.10.0"
+  flutter: ">=3.10.0 <4.0.0"
 
 dependencies:
   flutter:
