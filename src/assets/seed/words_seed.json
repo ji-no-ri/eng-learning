@@ -1,0 +1,269 @@
+{
+  "_note": "構造確認用のサンプルシード（各レベル数語のダミー）。実データ（JACET8000 + Wiktionary補完、最大8000語）は事前収集済みのものへ差し替える前提。単語データの収集・変換は本アプリのスコープ外（RFP 第9章）。",
+  "words": [
+    {
+      "word": "apple",
+      "level": 1,
+      "part_of_speech": "noun",
+      "pronunciation": "/ˈæp.əl/",
+      "definition_ja": "りんご",
+      "example_en": "I ate an apple for breakfast.",
+      "example_ja": "私は朝食にりんごを食べた。",
+      "inflections": { "plural": "apples" },
+      "collocations": ["an apple a day"]
+    },
+    {
+      "word": "run",
+      "level": 1,
+      "part_of_speech": "verb",
+      "pronunciation": "/rʌn/",
+      "definition_ja": "走る",
+      "example_en": "They run every morning.",
+      "example_ja": "彼らは毎朝走る。",
+      "inflections": { "past": "ran", "past_participle": "run", "present_participle": "running" },
+      "collocations": ["run fast", "run a business"]
+    },
+    {
+      "word": "happy",
+      "level": 1,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ˈhæp.i/",
+      "definition_ja": "幸せな",
+      "example_en": "She looks happy today.",
+      "example_ja": "彼女は今日幸せそうだ。",
+      "inflections": { "comparative": "happier", "superlative": "happiest" },
+      "collocations": null
+    },
+    {
+      "word": "weather",
+      "level": 2,
+      "part_of_speech": "noun",
+      "pronunciation": "/ˈweð.ər/",
+      "definition_ja": "天気",
+      "example_en": "The weather is nice today.",
+      "example_ja": "今日は天気が良い。",
+      "inflections": null,
+      "collocations": ["bad weather", "weather forecast"]
+    },
+    {
+      "word": "decide",
+      "level": 2,
+      "part_of_speech": "verb",
+      "pronunciation": "/dɪˈsaɪd/",
+      "definition_ja": "決める",
+      "example_en": "We decided to leave early.",
+      "example_ja": "私たちは早く出発することに決めた。",
+      "inflections": { "past": "decided", "present_participle": "deciding" },
+      "collocations": null
+    },
+    {
+      "word": "improve",
+      "level": 2,
+      "part_of_speech": "verb",
+      "pronunciation": "/ɪmˈpruːv/",
+      "definition_ja": "改善する",
+      "example_en": "He wants to improve his English.",
+      "example_ja": "彼は英語を上達させたい。",
+      "inflections": { "past": "improved" },
+      "collocations": ["improve skills"]
+    },
+    {
+      "word": "environment",
+      "level": 3,
+      "part_of_speech": "noun",
+      "pronunciation": "/ɪnˈvaɪ.rən.mənt/",
+      "definition_ja": "環境",
+      "example_en": "We must protect the environment.",
+      "example_ja": "私たちは環境を守らなければならない。",
+      "inflections": null,
+      "collocations": ["natural environment"]
+    },
+    {
+      "word": "describe",
+      "level": 3,
+      "part_of_speech": "verb",
+      "pronunciation": "/dɪˈskraɪb/",
+      "definition_ja": "描写する、説明する",
+      "example_en": "Please describe what you saw.",
+      "example_ja": "見たものを説明してください。",
+      "inflections": { "past": "described" },
+      "collocations": null
+    },
+    {
+      "word": "sudden",
+      "level": 3,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ˈsʌd.ən/",
+      "definition_ja": "突然の",
+      "example_en": "There was a sudden change in the plan.",
+      "example_ja": "計画に突然の変更があった。",
+      "inflections": null,
+      "collocations": ["a sudden change"]
+    },
+    {
+      "word": "analyze",
+      "level": 4,
+      "part_of_speech": "verb",
+      "pronunciation": "/ˈæn.ə.laɪz/",
+      "definition_ja": "分析する",
+      "example_en": "We need to analyze the data.",
+      "example_ja": "私たちはそのデータを分析する必要がある。",
+      "inflections": { "past": "analyzed" },
+      "collocations": ["analyze data"]
+    },
+    {
+      "word": "benefit",
+      "level": 4,
+      "part_of_speech": "noun",
+      "pronunciation": "/ˈben.ɪ.fɪt/",
+      "definition_ja": "利益、恩恵",
+      "example_en": "Exercise has many benefits.",
+      "example_ja": "運動には多くの恩恵がある。",
+      "inflections": { "plural": "benefits" },
+      "collocations": ["health benefits"]
+    },
+    {
+      "word": "previous",
+      "level": 4,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ˈpriː.vi.əs/",
+      "definition_ja": "以前の",
+      "example_en": "See the previous chapter for details.",
+      "example_ja": "詳細は前の章を参照してください。",
+      "inflections": null,
+      "collocations": null
+    },
+    {
+      "word": "fundamental",
+      "level": 5,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ˌfʌn.dəˈmen.təl/",
+      "definition_ja": "基本的な、根本的な",
+      "example_en": "Trust is fundamental to any relationship.",
+      "example_ja": "信頼はあらゆる関係の基本である。",
+      "inflections": null,
+      "collocations": ["fundamental principle"]
+    },
+    {
+      "word": "hypothesis",
+      "level": 5,
+      "part_of_speech": "noun",
+      "pronunciation": "/haɪˈpɒθ.ə.sɪs/",
+      "definition_ja": "仮説",
+      "example_en": "The experiment tested the hypothesis.",
+      "example_ja": "その実験は仮説を検証した。",
+      "inflections": { "plural": "hypotheses" },
+      "collocations": null
+    },
+    {
+      "word": "accumulate",
+      "level": 5,
+      "part_of_speech": "verb",
+      "pronunciation": "/əˈkjuː.mjə.leɪt/",
+      "definition_ja": "蓄積する",
+      "example_en": "Snow accumulated on the roof.",
+      "example_ja": "屋根に雪が積もった。",
+      "inflections": { "past": "accumulated" },
+      "collocations": null
+    },
+    {
+      "word": "comprehensive",
+      "level": 6,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ˌkɒm.prɪˈhen.sɪv/",
+      "definition_ja": "包括的な",
+      "example_en": "The report is comprehensive.",
+      "example_ja": "その報告書は包括的だ。",
+      "inflections": null,
+      "collocations": ["comprehensive review"]
+    },
+    {
+      "word": "allocate",
+      "level": 6,
+      "part_of_speech": "verb",
+      "pronunciation": "/ˈæl.ə.keɪt/",
+      "definition_ja": "割り当てる",
+      "example_en": "We allocate funds to each project.",
+      "example_ja": "私たちは各プロジェクトに資金を割り当てる。",
+      "inflections": { "past": "allocated" },
+      "collocations": ["allocate resources"]
+    },
+    {
+      "word": "coherent",
+      "level": 6,
+      "part_of_speech": "adjective",
+      "pronunciation": "/kəʊˈhɪə.rənt/",
+      "definition_ja": "首尾一貫した",
+      "example_en": "She gave a coherent explanation.",
+      "example_ja": "彼女は首尾一貫した説明をした。",
+      "inflections": null,
+      "collocations": null
+    },
+    {
+      "word": "unprecedented",
+      "level": 7,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ʌnˈpres.ɪ.den.tɪd/",
+      "definition_ja": "前例のない",
+      "example_en": "The scale of the event was unprecedented.",
+      "example_ja": "その出来事の規模は前例のないものだった。",
+      "inflections": null,
+      "collocations": ["unprecedented growth"]
+    },
+    {
+      "word": "meticulous",
+      "level": 7,
+      "part_of_speech": "adjective",
+      "pronunciation": "/məˈtɪk.jə.ləs/",
+      "definition_ja": "細心の、几帳面な",
+      "example_en": "He kept meticulous records.",
+      "example_ja": "彼は几帳面に記録をつけていた。",
+      "inflections": null,
+      "collocations": null
+    },
+    {
+      "word": "ambiguous",
+      "level": 7,
+      "part_of_speech": "adjective",
+      "pronunciation": "/æmˈbɪɡ.ju.əs/",
+      "definition_ja": "曖昧な",
+      "example_en": "The instructions were ambiguous.",
+      "example_ja": "その指示は曖昧だった。",
+      "inflections": null,
+      "collocations": ["ambiguous meaning"]
+    },
+    {
+      "word": "ubiquitous",
+      "level": 8,
+      "part_of_speech": "adjective",
+      "pronunciation": "/juːˈbɪk.wɪ.təs/",
+      "definition_ja": "至る所にある",
+      "example_en": "Smartphones are now ubiquitous.",
+      "example_ja": "スマートフォンは今や至る所にある。",
+      "inflections": null,
+      "collocations": null
+    },
+    {
+      "word": "paradigm",
+      "level": 8,
+      "part_of_speech": "noun",
+      "pronunciation": "/ˈpær.ə.daɪm/",
+      "definition_ja": "枠組み、パラダイム",
+      "example_en": "This marks a paradigm shift.",
+      "example_ja": "これはパラダイムの転換を示している。",
+      "inflections": { "plural": "paradigms" },
+      "collocations": ["paradigm shift"]
+    },
+    {
+      "word": "ephemeral",
+      "level": 8,
+      "part_of_speech": "adjective",
+      "pronunciation": "/ɪˈfem.ər.əl/",
+      "definition_ja": "はかない、束の間の",
+      "example_en": "Fame can be ephemeral.",
+      "example_ja": "名声は束の間のものになり得る。",
+      "inflections": null,
+      "collocations": null
+    }
+  ]
+}
