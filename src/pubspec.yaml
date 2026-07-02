@@ -1,0 +1,38 @@
+# JACET Vocabulary Learner
+# 非商用・教育目的の段階的英単語学習アプリ（Flutter / Dart）。
+# 本ファイルはタスク1（プロジェクト基盤・データ層）で作成。依存・アセット宣言を含む。
+name: jacet_vocabulary_learner
+description: "JACET8000 を基盤とする日本人学習者向け英単語学習アプリ（非商用・教育目的）。"
+publish_to: "none"
+version: 1.0.0+1
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.10.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # ローカル SQLite 永続化・集計クエリ（RFP 第6章）
+  sqflite: ^2.3.0
+  # ファイルパス結合（プラットフォーム差異の吸収）
+  path: ^1.9.0
+  # アプリ用ディレクトリ取得（DB配置先・Piperモデル保存先の解決）
+  path_provider: ^2.1.0
+  # OS標準TTSによる実行時音声合成・再生（初期値エンジン、RFP 4.5）
+  flutter_tts: ^4.0.0
+  # Piper TTSモデル等のHTTPダウンロード（RFP 4.5「ダウンロード仕様」）
+  http: ^1.2.0
+  # 状態管理・依存性注入（本プロジェクトは provider で統一）
+  provider: ^6.1.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+  # 事前収集済み単語データのシード（初回起動時に words テーブルへ投入）
+  assets:
+    - assets/seed/
