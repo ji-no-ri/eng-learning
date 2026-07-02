@@ -70,8 +70,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
   String? _error;
 
   /// Piper がダウンロード済み・使用中か（状態B）。未DL（状態A）なら false。
+  ///
+  /// RFP 4.5 状態遷移表の状態B（「ダウンロード済み・使用中」）に一致させるため、
+  /// `tts_engine == 'piper'` かつモデルパスが非空の両方を満たす場合のみ true とする。
+  /// モデルパスの有無だけで判定すると、`tts_engine != 'piper'` なのにパスが残っている
+  /// 状態（例: 無効化途中の不整合や外部要因で片方だけ残った場合）でも状態B表示となり、
+  /// 「現在: OS標準（flutter_tts）」というエンジン表示と矛盾するため、両条件で判定する。
   bool get _piperInUse =>
-      _piperModelPath != null && _piperModelPath!.isNotEmpty;
+      _engine == SettingsRepository.ttsEnginePiper &&
+      _piperModelPath != null &&
+      _piperModelPath!.isNotEmpty;
 
   @override
   void initState() {
