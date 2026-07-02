@@ -1,0 +1,2 @@
+# services 層のプレースホルダ。
+# TTS（flutter_tts / Piper）・ダウンロード等のサービス実装を後続タスクで配置する。
