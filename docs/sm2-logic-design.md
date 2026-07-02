@@ -21,7 +21,7 @@
 - 処理シーケンス図・カード状態遷移図（Mermaid）
 - RFP第11章のSM-2受け入れ基準との対応
 
-本書はSM-2ロジックとその周辺ドメインに限定する。画面レイアウト・DB物理スキーマ・開発環境の詳細は、それぞれ `docs/screen-design.md`・`docs/data-design.md`・`docs/development-environment-design.md` に従う。
+本書はSM-2ロジックとその周辺ドメインに限定する。画面レイアウト・DB物理スキーマ・音声（TTS）の詳細は、それぞれ `docs/screen-design.md`・`docs/data-design.md`・`docs/tts-audio-design.md` に従う。
 
 ---
 
