@@ -1,0 +1,6 @@
+# 静的解析ルール。Flutter 標準の推奨 lint を採用する。
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
