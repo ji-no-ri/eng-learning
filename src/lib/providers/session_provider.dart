@@ -57,7 +57,10 @@ class SessionProvider extends ChangeNotifier {
         _progressRepository = progressRepository ?? ProgressRepository(),
         _sm2Service = sm2Service ?? Sm2Service(),
         _ttsService = ttsService ?? TtsService(),
-        _now = now ?? DateTime.now();
+        // 基準時刻はセッション開始時点で当日 0:00 に丸めて確定し、以降の
+        // 復習抽出（_loadTargets）と SM-2 更新（grade）で同一値を用いる
+        // （RFP 5.2「0:00 境界基準」。基準日を全処理で一貫させる）。
+        _now = _startOfDay(now ?? DateTime.now());
 
   /// セッションモード（新規学習／復習）。
   final SessionMode mode;
@@ -70,7 +73,8 @@ class SessionProvider extends ChangeNotifier {
   final Sm2Service _sm2Service;
   final TtsService _ttsService;
 
-  /// セッション開始時点の基準時刻（当日 0:00 に丸めて各種算出に用いる）。
+  /// セッション開始時点の基準時刻（構築時に当日 0:00 へ丸め済み）。
+  /// 復習対象の抽出・SM-2 の日付算出でこの同一値を用いる（RFP 5.2「0:00 境界基準」）。
   final DateTime _now;
 
   /// 新規学習セッションの1回あたり出題上限（RFP 4.3「20語固定」）。
@@ -158,7 +162,8 @@ class SessionProvider extends ChangeNotifier {
       );
     }
     // 復習：next_review_at ≦ 今日 の語を全レベル横断・古い順（上限なし）。
-    final startOfToday = _startOfDay(_now).toIso8601String();
+    // _now は構築時に当日 0:00 へ丸め済み（SM-2 更新と基準日を一貫させる）。
+    final startOfToday = _now.toIso8601String();
     final due = await _progressRepository.getDueForReview(startOfToday);
     final result = <Word>[];
     for (final progress in due) {
@@ -185,6 +190,8 @@ class SessionProvider extends ChangeNotifier {
     if (!canGrade || word == null) return;
 
     // SM-2 更新（進捗レコードの取得/新規作成 → 更新 → study_log 追記を同一トランザクションで）。
+    // 基準時刻は _loadTargets の復習抽出と同じ _now（当日 0:00 に丸め済み）を渡し、
+    // 復習抽出と SM-2 の日付算出で基準日を一貫させる（RFP 5.2「0:00 境界基準」）。
     await _sm2Service.gradeWord(
       wordId: word.id!,
       level: word.level,
@@ -213,7 +220,8 @@ class SessionProvider extends ChangeNotifier {
   }
 
   /// 端末ローカル日付の当日 0:00（RFP 5.2「0:00 境界基準」）。
-  DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
+  /// 構築時の初期化リストから呼べるよう static とする。
+  static DateTime _startOfDay(DateTime d) => DateTime(d.year, d.month, d.day);
 
   @override
   void dispose() {
