@@ -8,10 +8,17 @@ import '../widgets/progress_bar_widget.dart';
 import 'level_detail_screen.dart';
 
 /// 画面遷移用コールバック（対象レベルを伴う）。
-typedef LevelNavCallback = void Function(BuildContext context, int level);
+///
+/// 遷移先（新規学習セッション等）からの復帰を待って再集計できるよう [Future] を返せる。
+/// `push` の戻り Future をそのまま返せばよい。同期処理で `null` を返した場合も `await`
+/// 可能（RFP 5.5「セッション・詳細画面から戻った際に再集計」）。
+typedef LevelNavCallback = Future<void>? Function(BuildContext context, int level);
 
 /// 画面遷移用コールバック（レベル指定なし）。
-typedef ScreenNavCallback = void Function(BuildContext context);
+///
+/// 遷移先（復習セッション・設定画面等）からの復帰を待って再集計できるよう [Future] を返せる。
+/// `push` の戻り Future をそのまま返せばよい（RFP 5.5）。
+typedef ScreenNavCallback = Future<void>? Function(BuildContext context);
 
 /// ホーム画面（LV選択統合画面。RFP 4.1・画面設計書 §5）。
 ///
@@ -83,22 +90,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  void _handleStartReview() {
+  /// 復習セッションを開始し、復帰後に再集計する（RFP 5.5）。
+  ///
+  /// コールバックが返す [Future]（`push` の戻り等）を待ってから [HomeProvider.load] を
+  /// 呼ぶため、復習で `next_review_at`・進捗が変化しても復帰時に反映される。
+  Future<void> _handleStartReview() async {
     final cb = widget.onStartReview;
-    if (cb != null) {
-      cb(context);
-    } else {
+    if (cb == null) {
       _showPending('復習セッション');
+      return;
     }
+    await cb(context);
+    if (!mounted) return;
+    await _provider.load();
   }
 
-  void _handleStartNewSession(int level) {
+  /// 選択レベルの新規学習セッションを開始し、復帰後に再集計する（RFP 5.5）。
+  Future<void> _handleStartNewSession(int level) async {
     final cb = widget.onStartNewSession;
-    if (cb != null) {
-      cb(context, level);
-    } else {
+    if (cb == null) {
       _showPending('新規学習セッション');
+      return;
     }
+    await cb(context, level);
+    if (!mounted) return;
+    await _provider.load();
   }
 
   Future<void> _openDetail(int level) async {
